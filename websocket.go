@@ -23,10 +23,7 @@ func NewWebsocketObserver(conn *websocket.Conn) Observer {
 }
 
 func (w *websocketObserver) sendHandler() {
-	defer func() {
-		w.conn.Close()
-		fmt.Println("Connection closed")
-	}()
+	defer w.conn.Close()
 	for !w.closed {
 		select {
 		case state := <-w.sendQ:
@@ -38,7 +35,6 @@ func (w *websocketObserver) sendHandler() {
 				w.closed = true
 				return
 			}
-			fmt.Printf("Sent %v\n", state)
 		}
 	}
 }
