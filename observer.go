@@ -7,12 +7,14 @@ import (
 // Observer is an objects that can receive status updates
 type Observer interface {
 	OnUpdate(newstate interface{}) error
+	ReceiveChan() <-chan interface{}
 }
 
 // State is a status container tha can send updates on Observers
 type State struct {
 	status    interface{}
 	observers []Observer
+	recvQ     chan interface{}
 	lock      sync.Mutex
 }
 
@@ -44,5 +46,37 @@ func (s *State) AddObserver(observer Observer) {
 		// failed to add observer
 		return
 	}
+
+	if s.recvQ == nil {
+		s.recvQ = make(chan interface{})
+	}
+	go receiveFeeder(s.recvQ, observer.ReceiveChan())
 	s.observers = append(s.observers, observer)
+}
+
+func receiveFeeder(out chan<- interface{}, in <-chan interface{}) {
+	for {
+		data, ok := <-in
+		if !ok {
+			return
+		}
+		out <- data
+	}
+}
+
+// Receive returns messages coming back from observers.
+// The messages are received without any ordering, it may be needed
+// to call the method several times to retrieve all the queued messages.
+func (s *State) Receive() interface{} {
+	s.lock.Lock()
+	if s.recvQ == nil {
+		s.recvQ = make(chan interface{})
+	}
+	s.lock.Unlock()
+
+	res, ok := <-s.recvQ
+	if ok {
+		return res
+	}
+	return nil
 }
